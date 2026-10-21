@@ -98,6 +98,17 @@ tr:nth-child(even) td { background: rgba(128,128,128,.05); }
 
 mark { background: rgba(255,210,0,.35); color: inherit; }
 
+/* 原始碼編輯：同一個分頁換成純文字框 */
+#src {
+  display: block; width: 100%; height: 100vh; box-sizing: border-box;
+  margin: 0; padding: 28px 36px 40vh; border: 0; outline: none; resize: none;
+  background: var(--md-bg); color: var(--md-fg);
+  font-family: var(--md-mono); font-size: var(--vscode-editor-font-size, 14px); line-height: 1.6;
+  tab-size: 4; white-space: pre-wrap; overflow-wrap: break-word;
+}
+#src[hidden] { display: none; }
+body.source #content, body.source #fm { display: none; }
+
 /* 預覽鎖住：全部唯讀 */
 body.locked #content { cursor: default; }
 

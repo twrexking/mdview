@@ -4,11 +4,12 @@
 //   這一檔只做「開分頁、把檔案內容送進畫面、把畫面送回來的改動寫進檔案、開連結」。
 //   怎麼畫、怎麼改，全在 media/view.js（畫面端）與 media/edit-core.js（純邏輯，有測試）。
 //
-// 三種狀態（畫面右上角那顆鈕）：
-//   預覽鎖住（預設）→ 預覽編輯（就地改字）→ 原始碼編輯（換成 VS Code 一般的文字編輯器，
-//   分頁標題列有一顆「回到 MD 檢視器」）。
+// 三種狀態（畫面右上角那組鈕，三種狀態都在同一個分頁裡，鈕不會消失）：
+//   預覽鎖住（預設）／預覽編輯（就地改字）／原始碼編輯（同一個畫面換成純文字框）。
+//   另有指令「改用 VS Code 文字編輯器開」給想用一般編輯器的人；那邊的分頁標題列有一顆眼睛可以回來。
 //
-// 寫檔的鐵律：畫面端只送「第 from 行到第 to 行（不含）換成 text」，這裡照做、不碰其他行。
+// 寫檔的鐵律：預覽編輯只送「第 from 行到第 to 行（不含）換成 text」，這裡照做、不碰其他行。
+// 原始碼編輯送的是整份文字（使用者自己在改整份），一樣只在版本對得上時才寫。
 "use strict";
 const vscode = require("vscode");
 const path = require("path");
@@ -25,7 +26,7 @@ function activate(context) {
   const provider = new MdViewProvider(context);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
-      webviewOptions: { retainContextWhenHidden: true },
+      webviewOptions: { retainContextWhenHidden: true, enableFindWidget: true },
       supportsMultipleEditorsPerDocument: true
     }),
     vscode.commands.registerCommand("mdview.openView", openView),
@@ -102,6 +103,7 @@ class MdViewProvider {
         switch (msg.type) {
           case "ready": sendInit(); break;
           case "edit": await this.applyEdit(document, webview, msg); break;
+          case "replaceAll": await this.replaceAll(document, webview, msg); break;
           case "openSource": await this.openSource(document, panel, msg.line || 0); break;
           case "openLink": await this.openLink(document, msg.href, panel.viewColumn); break;
           case "error": console.error("[mdview]", msg.text); break;
@@ -145,7 +147,23 @@ class MdViewProvider {
     }
   }
 
-  /** 切到原始碼：開一般文字編輯器、捲到同一行，然後把這個檢視器分頁收掉。 */
+  /** 原始碼編輯：整份文字換掉（使用者自己在純文字框裡改的）。版本對不上就退回最新內容。 */
+  async replaceAll(document, webview, msg) {
+    if (msg.version !== document.version) {
+      webview.postMessage({ type: "update", text: document.getText(), version: document.version });
+      return;
+    }
+    if (typeof msg.text !== "string" || msg.text === document.getText()) return;
+    const whole = new vscode.Range(new vscode.Position(0, 0), document.lineAt(document.lineCount - 1).range.end);
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(document.uri, whole, msg.text);
+    const ok = await vscode.workspace.applyEdit(edit);
+    if (ok && vscode.workspace.getConfiguration("mdview").get("autoSave", true)) {
+      await document.save();
+    }
+  }
+
+  /** 改用 VS Code 文字編輯器：開一般文字編輯器、捲到同一行，然後把這個檢視器分頁收掉。 */
   async openSource(document, panel, line) {
     const pos = new vscode.Position(Math.max(0, Math.min(line, document.lineCount - 1)), 0);
     await vscode.window.showTextDocument(document, {
@@ -213,10 +231,11 @@ class MdViewProvider {
 <div id="bar">
   <button id="m-locked" class="mb on" title="預覽鎖住：只看、不會改到">${ICON.lock}</button>
   <button id="m-edit" class="mb" title="預覽編輯：點一段就能在原地改字">${ICON.pencil}</button>
-  <button id="m-source" class="mb" title="原始碼編輯：換成一般文字編輯器">${ICON.code}</button>
+  <button id="m-source" class="mb" title="原始碼編輯：直接改 markdown 原文">${ICON.code}</button>
 </div>
 <div id="fm" hidden></div>
 <article id="content"></article>
+<textarea id="src" hidden spellcheck="false" wrap="soft" aria-label="原始碼"></textarea>
 <script nonce="${nonce}" src="${uri("markdown-it.min.js")}"></script>
 <script nonce="${nonce}" src="${uri("turndown.js")}"></script>
 <script nonce="${nonce}" src="${uri("edit-core.js")}"></script>

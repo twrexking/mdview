@@ -2,7 +2,7 @@
   "name": "mdview",
   "displayName": "MD 檢視器",
   "description": "Markdown 檔點開就是排版好的畫面：鎖住只看、解鎖就地改字、要動結構再切到原始碼。沒碰的段落一個字都不動。",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "angelag0",
   "license": "MIT",
   "engines": { "vscode": "^1.85.0" },
@@ -22,7 +22,7 @@
     ],
     "commands": [
       { "command": "mdview.openView", "title": "回到 MD 檢視器", "category": "MD 檢視器", "icon": "$(eye)" },
-      { "command": "mdview.openSource", "title": "切到原始碼編輯", "category": "MD 檢視器", "icon": "$(code)" }
+      { "command": "mdview.openSource", "title": "改用 VS Code 文字編輯器開這個檔", "category": "MD 檢視器", "icon": "$(code)" }
     ],
     "menus": {
       "editor/title": [

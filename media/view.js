@@ -1,6 +1,7 @@
 // MD 檢視器的畫面端：畫面、三種狀態、就地編輯、與主程式的通道。
 //
-// 三種狀態：locked（預覽鎖住，預設）／edit（預覽編輯）／source（切到原始碼，由主程式換分頁）。
+// 三種狀態：locked（預覽鎖住，預設）／edit（預覽編輯）／source（原始碼編輯：同一個分頁換成純文字框，
+// 整份文字用 replaceAll 送回；三顆鈕在三種狀態下都在）。
 // 可改的單位（class="ed"）：段落、標題、表格的一格、引言或條列裡的段落。
 // 不可改的（class="nope"）：程式碼區塊、原始 HTML、圖片、設定區——要改請切到原始碼。
 //
@@ -94,24 +95,28 @@
     edit: document.getElementById("m-edit"),
     source: document.getElementById("m-source")
   };
+  var srcBox = document.getElementById("src");
+
   function setMode(mode) {
-    if (mode === "source") {
-      commit();
-      vscode.postMessage({ type: "openSource", line: topLine() });
-      return;
-    }
-    if (mode === "locked") commit();
+    if (mode === S.mode) return;
+    var line = S.mode === "source" ? caretLine() : topLine();
+    if (S.mode === "source") leaveSource();
+    else commit();
     S.mode = mode;
     document.body.classList.toggle("locked", mode === "locked");
     document.body.classList.toggle("edit", mode === "edit");
+    document.body.classList.toggle("source", mode === "source");
     btns.locked.classList.toggle("on", mode === "locked");
     btns.edit.classList.toggle("on", mode === "edit");
+    btns.source.classList.toggle("on", mode === "source");
+    if (mode === "source") enterSource(line);
+    else setTimeout(function () { reveal(line, true); }, 0);
   }
   btns.locked.addEventListener("click", function () { setMode("locked"); });
   btns.edit.addEventListener("click", function () { setMode("edit"); });
   btns.source.addEventListener("click", function () { setMode("source"); });
 
-  // 目前畫面最上方是檔案的第幾行（切到原始碼時捲到同一處）。
+  // 目前畫面最上方是檔案的第幾行（切換狀態時兩邊要對到同一處）。
   function topLine() {
     var els = content.querySelectorAll("[data-ls]");
     for (var i = 0; i < els.length; i++) {
@@ -119,6 +124,67 @@
       if (r.bottom >= 8) return parseInt(els[i].getAttribute("data-ls"), 10) || 0;
     }
     return 0;
+  }
+
+  // ---------- 原始碼編輯（同一個分頁換成純文字框） ----------
+  var srcTimer = null;
+
+  function enterSource(line) {
+    srcBox.value = S.text;
+    srcBox.hidden = false;
+    var lines = S.lines;
+    var pos = 0;
+    for (var i = 0; i < line && i < lines.length; i++) pos += lines[i].length + 1;
+    srcBox.focus();
+    srcBox.setSelectionRange(pos, pos);
+    // 文字框自己捲動：讓那一行停在框的上方。
+    var lh = parseFloat(getComputedStyle(srcBox).lineHeight) || 22;
+    srcBox.scrollTop = Math.max(0, line * lh);
+  }
+
+  // 游標在第幾行。
+  function caretLine() {
+    var v = srcBox.value;
+    var n = 0;
+    for (var i = 0; i < srcBox.selectionStart && i < v.length; i++) if (v.charCodeAt(i) === 10) n++;
+    return n;
+  }
+
+  function flushSource() {
+    if (srcTimer) { clearTimeout(srcTimer); srcTimer = null; }
+    var v = srcBox.value;
+    if (v === S.text) return;
+    setText(v, S.version);
+    vscode.postMessage({ type: "replaceAll", text: v, version: S.version });
+  }
+
+  function leaveSource() {
+    flushSource();
+    srcBox.hidden = true;
+    render();
+  }
+
+  srcBox.addEventListener("input", function () {
+    if (srcTimer) clearTimeout(srcTimer);
+    srcTimer = setTimeout(flushSource, 400);
+  });
+  srcBox.addEventListener("blur", flushSource);
+  srcBox.addEventListener("keydown", function (e) {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      document.execCommand("insertText", false, "  ");
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      flushSource();
+    }
+  });
+
+  // 原始碼編輯中收到外面改的內容：換掉文字框的內容，游標盡量留在原位。
+  function applyExternalToSource(text) {
+    var start = srcBox.selectionStart, end = srcBox.selectionEnd;
+    srcBox.value = text;
+    var max = text.length;
+    srcBox.setSelectionRange(Math.min(start, max), Math.min(end, max));
   }
 
   // ---------- 就地編輯 ----------
@@ -186,6 +252,7 @@
   }
 
   document.addEventListener("keydown", function (e) {
+    if (S.mode === "source") return;
     if (!S.editing) return;
     if (e.key === "Escape") { e.preventDefault(); commit(); return; }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(); return; }
@@ -202,7 +269,7 @@
     }, 0);
   });
   document.addEventListener("paste", function (e) {
-    if (!S.editing) return;
+    if (S.mode === "source" || !S.editing) return;
     e.preventDefault();
     var t = (e.clipboardData || window.clipboardData).getData("text/plain");
     document.execCommand("insertText", false, t);
@@ -237,18 +304,19 @@
     vscode.postMessage({ type: "openLink", href: href });
   });
 
-  // 捲到某一行（連結帶行號、或從原始碼切回來時）。
-  function reveal(line) {
+  // 捲到某一行（連結帶行號、或切換狀態時對位）。quiet＝只捲不閃。
+  function reveal(line, quiet) {
     var els = content.querySelectorAll("[data-ls]");
     var best = null;
     for (var i = 0; i < els.length; i++) {
       var ls = parseInt(els[i].getAttribute("data-ls"), 10);
       var le = parseInt(els[i].getAttribute("data-le"), 10);
       if (ls <= line && line < le) best = els[i];
-      else if (ls > line) break;
+      else if (ls > line) { if (!best) best = els[i]; break; }
     }
     if (!best) return;
     best.scrollIntoView({ block: "start" });
+    if (quiet) return;
     best.classList.add("flash");
     setTimeout(function () { best.classList.remove("flash"); }, 1700);
   }
@@ -269,7 +337,8 @@
         if (S.editing) { S.pending = { text: m.text, version: m.version }; break; }
         if (m.text === S.text) { S.version = m.version; break; }
         setText(m.text, m.version);
-        render();
+        if (S.mode === "source") applyExternalToSource(m.text);
+        else render();
         break;
       case "reveal":
         reveal(m.line);
