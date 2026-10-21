@@ -1,0 +1,122 @@
+:root {
+  --md-font: var(--vscode-markdown-font-family, var(--vscode-font-family, "Segoe UI", "Microsoft JhengHei", sans-serif));
+  --md-mono: var(--vscode-editor-font-family, Consolas, "Courier New", monospace);
+  --md-size: 15px;
+  --md-max: 980px;
+  --md-fg: var(--vscode-editor-foreground, #d4d4d4);
+  --md-bg: var(--vscode-editor-background, #1e1e1e);
+  --md-muted: var(--vscode-descriptionForeground, #9d9d9d);
+  --md-line: var(--vscode-textSeparator-foreground, rgba(128,128,128,.35));
+  --md-link: var(--vscode-textLink-foreground, #4daafc);
+  --md-quote-bg: var(--vscode-textBlockQuote-background, rgba(127,127,127,.1));
+  --md-code-bg: var(--vscode-textCodeBlock-background, rgba(127,127,127,.15));
+  --md-code-fg: var(--vscode-textPreformat-foreground, #d7ba7d);
+  --md-accent: var(--vscode-focusBorder, #007fd4);
+  --md-bar-bg: var(--vscode-editorWidget-background, #252526);
+  --md-bar-border: var(--vscode-editorWidget-border, rgba(128,128,128,.35));
+}
+
+html, body { margin: 0; padding: 0; background: var(--md-bg); color: var(--md-fg); }
+body {
+  font-family: var(--md-font);
+  font-size: var(--md-size);
+  line-height: 1.7;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* 右上角的三態鈕 */
+#bar {
+  position: fixed; top: 10px; right: 18px; z-index: 10;
+  display: flex; gap: 2px; padding: 3px;
+  background: var(--md-bar-bg); border: 1px solid var(--md-bar-border); border-radius: 6px;
+  opacity: .55; transition: opacity .15s;
+}
+#bar:hover, body.edit #bar { opacity: 1; }
+.mb {
+  width: 28px; height: 26px; border: 0; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--md-muted);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.mb:hover { color: var(--md-fg); background: rgba(128,128,128,.18); }
+.mb.on { color: var(--vscode-button-foreground, #fff); background: var(--vscode-button-background, #0e639c); }
+.mb svg { pointer-events: none; }
+
+/* 內文 */
+#content, #fm {
+  max-width: var(--md-max); margin: 0 auto; padding: 28px 36px 60vh;
+  box-sizing: border-box;
+}
+#fm { padding-bottom: 0; }
+#fm pre {
+  margin: 0 0 8px; padding: 8px 12px; font-size: .85em; color: var(--md-muted);
+  background: var(--md-code-bg); border-radius: 6px; white-space: pre-wrap;
+}
+#fm pre::before { content: "設定區（要改請切到原始碼）"; display: block; margin-bottom: 4px; font-family: var(--md-font); opacity: .7; }
+
+h1, h2, h3, h4, h5, h6 { font-weight: 600; line-height: 1.3; margin: 1.6em 0 .6em; }
+h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 1px solid var(--md-line); }
+h2 { font-size: 1.5em; padding-bottom: .25em; border-bottom: 1px solid var(--md-line); }
+h3 { font-size: 1.25em; }
+h4 { font-size: 1.05em; }
+h5, h6 { font-size: 1em; color: var(--md-muted); }
+h1:first-child, h2:first-child { margin-top: .2em; }
+
+p { margin: 0 0 1em; }
+li > p { margin: 0; }
+li > p + p, li > p + ul, li > p + ol { margin-top: .4em; }
+ul, ol { padding-left: 1.8em; margin: 0 0 1em; }
+li { margin: .15em 0; }
+li.task { list-style: none; margin-left: -1.6em; }
+li.task input { margin: 0 .5em 0 0; vertical-align: -1px; }
+hr { border: 0; border-top: 1px solid var(--md-line); margin: 1.6em 0; }
+
+blockquote {
+  margin: 0 0 1em; padding: .5em 1em;
+  background: var(--md-quote-bg); border: 1px solid var(--md-line); border-radius: 6px;
+}
+blockquote > p:last-child { margin-bottom: 0; }
+
+a { color: var(--md-link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; height: auto; }
+
+code {
+  font-family: var(--md-mono); font-size: .9em;
+  background: var(--md-code-bg); color: var(--md-code-fg); padding: .1em .35em; border-radius: 4px;
+}
+pre {
+  background: var(--md-code-bg); padding: 12px 14px; border-radius: 6px; overflow: auto;
+  margin: 0 0 1em; line-height: 1.5;
+}
+pre code { background: transparent; padding: 0; color: var(--md-fg); font-size: .9em; }
+
+table { border-collapse: collapse; margin: 0 0 1em; max-width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--md-line); padding: .35em .7em; vertical-align: top; }
+th { font-weight: 600; background: rgba(128,128,128,.12); }
+tr:nth-child(even) td { background: rgba(128,128,128,.05); }
+
+mark { background: rgba(255,210,0,.35); color: inherit; }
+
+/* 預覽鎖住：全部唯讀 */
+body.locked #content { cursor: default; }
+
+/* 預覽編輯：可改的段落移上去有框，點了就能打字 */
+body.edit .ed { cursor: text; border-radius: 4px; transition: box-shadow .1s; }
+body.edit .ed:hover { box-shadow: 0 0 0 1px var(--md-line); }
+body.edit .ed.editing {
+  outline: none; box-shadow: 0 0 0 2px var(--md-accent);
+  background: rgba(128,128,128,.06);
+}
+body.edit td.ed, body.edit th.ed { border-radius: 0; }
+body.edit .nope { position: relative; }
+body.edit .nope:hover::after {
+  content: "這一塊要改請切到原始碼"; position: absolute; top: 4px; right: 8px;
+  font-size: .75em; color: var(--md-muted); font-family: var(--md-font);
+}
+.editing a { pointer-events: none; }
+
+.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { 0% { background: rgba(255,210,0,.35); } 100% { background: transparent; } }
+
+#empty { color: var(--md-muted); text-align: center; margin-top: 30vh; }

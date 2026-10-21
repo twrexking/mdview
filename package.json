@@ -1,0 +1,61 @@
+{
+  "name": "mdview",
+  "displayName": "MD 檢視器",
+  "description": "Markdown 檔點開就是排版好的畫面：鎖住只看、解鎖就地改字、要動結構再切到原始碼。沒碰的段落一個字都不動。",
+  "version": "0.1.0",
+  "publisher": "angelag0",
+  "license": "MIT",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "mdview.editor",
+        "displayName": "MD 檢視器",
+        "selector": [
+          { "filenamePattern": "*.md" },
+          { "filenamePattern": "*.markdown" }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      { "command": "mdview.openView", "title": "回到 MD 檢視器", "category": "MD 檢視器", "icon": "$(eye)" },
+      { "command": "mdview.openSource", "title": "切到原始碼編輯", "category": "MD 檢視器", "icon": "$(code)" }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mdview.openView",
+          "when": "resourceLangId == markdown && activeCustomEditorId != mdview.editor",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        { "command": "mdview.openView", "when": "resourceLangId == markdown" },
+        { "command": "mdview.openSource", "when": "activeCustomEditorId == mdview.editor" }
+      ]
+    },
+    "configuration": {
+      "title": "MD 檢視器",
+      "properties": {
+        "mdview.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "在畫面上改完一段（點別處或按 Enter）就直接寫進檔案，不用按 Ctrl+S。"
+        },
+        "mdview.fontSize": {
+          "type": "number",
+          "default": 15,
+          "description": "畫面的字級（px）。"
+        },
+        "mdview.maxWidth": {
+          "type": "number",
+          "default": 980,
+          "description": "內文最大寬度（px）；0 代表不限寬、填滿分頁。"
+        }
+      }
+    }
+  }
+}
