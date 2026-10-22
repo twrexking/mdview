@@ -38,3 +38,20 @@ VS Code 擴充：Markdown 檔點開就是畫面，三種狀態（預覽鎖住／
 - 新增檔案要加進 `build.ps1` 的白名單。
 - 不用截圖驗畫面：驗 `node --check`、測試、class 與 CSS 對照；畫面長怎樣交給使用者看。
 - 介面不做 AI 風：引文不用彩色左邊線、圓角 6px 以內、不加表情符號、不用漸層與光暈、動畫只留有功能的。
+
+## 定位重估（2026-10-22）
+
+- **VS Code 1.131 起內建 Markdown Editor**（viewType `vscode.markdown.editor`，在 `markdown-language-features` 裡，原始碼隨附於 `markdown-editor-src/`，
+  引擎是微軟發的 npm `@vscode/markdown-editor`，MIT，2026-10 仍是 0.0.2 預覽）。它的模型就是 markdown 原文字串，每次變動用 `computeTextEdit`
+  算前後綴最小差寫回——**鐵律一它也守，而且是字元級、比本專案的段落級更細**。鎖定模式 `markdown.editor.toggleLocked`（mac cmd+E）對應鐵律二。
+  1.143 **沒有字級設定**：provider 只讀 `highlightActiveBlock`／`experimental.richLinks.enabled`／`preview.openMarkdownLinks`，
+  樣式寫 `var(--markdown-font-size, 14px)` 但編輯器樣板不注入那個變數（只有舊預覽注入），`markdown.styles` 也只對預覽生效；樣式只跟 VS Code 主題。
+- **第三方**：concretios/markdown-for-humans（Tiptap＋turndown；0.4.1 起沒改的區塊保留原文、改過的區塊重寫成標準形、`\*` 會掉、部分 HTML 會丟；
+  有字型／字級／行高設定；`priority: option`）。Vditor 系（cweijan/vscode-office、zaaack）與 Milkdown 系整份重寫，與鐵律一相衝，不考慮。
+  SeardnaSchmid/markdown-inline-editor-vscode 走文字編輯器 decorations、完全不改檔，是另一種路線。
+- **本機現況**：`workbench.editorAssociations` 的 `*.md` 指到 `markdownForHumans.editor`；本專案未安裝。
+- **先擱置**。主需求（在 VS Code 裡像文章一樣看與改 md）內建版＋Markdown for Humans 已涵蓋。回頭做的觸發條件：內建的 14px 太小而 Humans 的標準化改寫不能接受。
+- **若要續做，先做這四件**：①`priority` 改 `option`，不接管所有 .md，跟上面兩個並存；②補 mac 打包腳本（現在只有 `build.ps1`）；
+  ③寫檔改成字元級 diff（學內建的 `computeTextEdit`），段落級對映（`token.map`、表格自補行號）的坑就不用再踩；
+  ④差異化只剩：預設鎖住、三顆鈕固定位置、`mdview.fontSize`、中文介面。
+- 查證方式與出處（release notes 版本、`gh api` 星數、原始碼行）：myharness `docs/dev-log/2026-10-22.md` §2。
