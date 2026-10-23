@@ -40,7 +40,7 @@ VS Code 的 `workbench.editorAssociations` 只管使用者自己點開的檔；�
 - 純邏輯只進 `media/*-core.js`／`turndown-rules.js`，改了就補 `test/`；`build.ps1` 會先跑 `test/run-all.js` 與 `node --check`。
   轉回 markdown 的測試需要 node 版 turndown，路徑放環境變數 `MDVIEW_TURNDOWN`（沒有就略過那支）。
 - 發版：改 `package.json` 版號 → `build.ps1` → `code --install-extension mdview-<版號>.vsix --force` → 重新載入視窗
-  → README 版本紀錄 → commit＋push。
+  → README 版本紀錄 → commit＋push（vsix 一起提交：repo 收 `mdview-<版號>.vsix`，舊版的刪掉只留最新一包；別台電腦的安裝腳本從 clone 裡拿版號最大的那包裝）。
 - `.ps1` 含中文要存成 UTF-8 with BOM，不然 PowerShell 5.1 會讀壞（0.1.0 踩到）。
 - 新增檔案要加進 `build.ps1` 的白名單。
 - 不用截圖驗畫面：驗 `node --check`、測試、class 與 CSS 對照；畫面長怎樣交給使用者看。
