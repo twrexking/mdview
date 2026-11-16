@@ -21,6 +21,16 @@ const EXTERNAL_EXT = /\.(html?|pdf|png|jpe?g|gif|webp|svg|docx?|xlsx?|pptx?)$/i;
 const panelsByDoc = new Map();
 /** 開檔之前先登記「開好後捲到第幾行」。 */
 const pendingReveal = new Map();
+/** 這幾個檔在這段時間內用文字編輯器開是使用者自己要的，接手不碰（值＝到期時間）。 */
+const textAllowed = new Map();
+
+function allowText(uri, ms) { textAllowed.set(uri.toString(), Date.now() + ms); }
+function isTextAllowed(key) {
+  const t = textAllowed.get(key);
+  if (!t) return false;
+  if (Date.now() > t) { textAllowed.delete(key); return false; }
+  return true;
+}
 
 function activate(context) {
   const provider = new MdViewProvider(context);
@@ -33,8 +43,69 @@ function activate(context) {
     vscode.commands.registerCommand("mdview.openSource", () => {
       const panel = provider.activePanel;
       if (panel) provider.openSource(panel.document, panel.panel, 0);
-    })
+    }),
+    vscode.window.tabGroups.onDidChangeTabs((e) => onTabsChanged(e))
   );
+}
+
+/* ---------- 接手：別的程式用文字編輯器開 md 檔時，換成檢視器 ----------
+ * 為什麼需要：VS Code 的「md 預設用哪個編輯器」只管使用者自己點開的；擴充程式用 showTextDocument 開檔
+ * 會直接開文字編輯器、不看那個設定（官方 Claude Code 面板裡點連結就是這條路）。
+ * 做法：看分頁事件，新開的文字分頁是 .md 就關掉、改用檢視器開同一檔，行號照文字編輯器當時的游標帶過去。
+ * 不接手的情況：
+ *   - 設定 mdview.takeOver 關掉；或使用者把 *.md 的預設編輯器改成別的（workbench.editorAssociations）。
+ *   - 使用者自己要文字編輯器：按了「改用 VS Code 文字編輯器開這個檔」、或在分頁上選 Reopen Editor With
+ *     （檢視器分頁剛被收掉的兩秒內出現同一檔的文字分頁，就當作是她選的）。
+ *   - 那份檔有沒存的改動（關分頁會跳存檔視窗）。
+ *   - 同一檔已經有文字分頁在同一處：showTextDocument 會直接用舊分頁，不會有「新開」事件，維持她原本的選擇。 */
+function takeOverEnabled() {
+  if (!vscode.workspace.getConfiguration("mdview").get("takeOver", true)) return false;
+  const assoc = vscode.workspace.getConfiguration("workbench").get("editorAssociations") || {};
+  const v = assoc["*.md"];
+  return v === undefined || v === VIEW_TYPE;
+}
+
+function onTabsChanged(e) {
+  for (const tab of e.opened) {
+    const input = tab.input;
+    if (!(input instanceof vscode.TabInputText)) continue;
+    const uri = input.uri;
+    if (uri.scheme !== "file" || !/\.(md|markdown)$/i.test(uri.fsPath)) continue;
+    if (!takeOverEnabled()) continue;
+    if (isTextAllowed(uri.toString())) continue;
+    // 等一下再動手：開檔的程式通常在分頁出現之後才把游標移到指定行，要把那一行一起帶走。
+    setTimeout(() => takeOver(uri, tab.group.viewColumn).catch((err) => console.error("[mdview]", err)), 80);
+  }
+}
+
+function findTextTab(key) {
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      if (tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === key) return tab;
+    }
+  }
+  return null;
+}
+
+async function takeOver(uri, column) {
+  const key = uri.toString();
+  if (isTextAllowed(key)) return;
+  const tab = findTextTab(key);
+  if (!tab) return;
+  const editor = vscode.window.visibleTextEditors.find((ed) => ed.document.uri.toString() === key);
+  if (editor && editor.document.isDirty) return;
+  const line = editor ? editor.selection.start.line : 0;
+  const closed = await vscode.window.tabGroups.close(tab, true);
+  if (!closed) return;
+  const open = panelsByDoc.get(key);
+  if (open && open.size) {
+    const first = open.values().next().value;
+    first.panel.reveal(undefined, false);
+    first.panel.webview.postMessage({ type: "reveal", line });
+    return;
+  }
+  pendingReveal.set(key, line);
+  await vscode.commands.executeCommand("vscode.openWith", uri, VIEW_TYPE, column || tab.group.viewColumn);
 }
 
 /** 從文字編輯器回到檢視器：先存檔、關掉文字分頁，再用檢視器開同一檔。 */
@@ -114,6 +185,8 @@ class MdViewProvider {
       }
     }));
     panel.onDidDispose(() => {
+      // 檢視器分頁被收掉後兩秒內出現同一檔的文字分頁＝使用者在分頁上選了 Reopen Editor With，不接手。
+      allowText(document.uri, 2000);
       subs.forEach((d) => d.dispose());
       const set = panelsByDoc.get(key);
       if (set) { set.delete(entry); if (!set.size) panelsByDoc.delete(key); }
@@ -165,6 +238,7 @@ class MdViewProvider {
 
   /** 改用 VS Code 文字編輯器：開一般文字編輯器、捲到同一行，然後把這個檢視器分頁收掉。 */
   async openSource(document, panel, line) {
+    allowText(document.uri, 5000);
     const pos = new vscode.Position(Math.max(0, Math.min(line, document.lineCount - 1)), 0);
     await vscode.window.showTextDocument(document, {
       viewColumn: panel.viewColumn,
@@ -256,3 +330,5 @@ const ICON = {
 function deactivate() {}
 
 module.exports = { activate, deactivate };
+/** 給 test/ 用：直接戳接手邏輯與登記表。 */
+module.exports.__test = { onTabsChanged, takeOver, allowText, panelsByDoc, pendingReveal, VIEW_TYPE };

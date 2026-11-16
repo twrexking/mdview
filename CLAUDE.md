@@ -13,6 +13,13 @@ VS Code 擴充：Markdown 檔點開就是畫面，三種狀態（預覽鎖住／
 3. **三顆鈕永遠在同一個位置。** 原始碼編輯也留在同一個分頁裡（純文字框），不換成 VS Code 的文字編輯器：
    換過去鈕就不見了，使用者找不到回來的路（0.1.0 實際踩到）。想用真正的文字編輯器另有指令。
 
+## 為什麼要「接手」別的程式開的 md（0.3.0）
+
+VS Code 的 `workbench.editorAssociations` 只管使用者自己點開的檔；擴充程式呼叫 `showTextDocument`
+一律開文字編輯器。官方 Claude Code 擴充的開檔（面板裡點連結的 `open_file`）就是這樣寫的，
+所以對話裡點 md 連結永遠是原始碼。修在這邊而不是修在轉交連結的那一層：這裡一次擋住所有來源，
+而且不用動別的擴充。做法與不接手的四種情況寫在 `extension.js` 接手那段的註解。
+
 ## 為什麼獨立一個擴充
 
 它跟任何對官方擴充打補丁的工具無關，獨立做才不會被別人的發版流程綁住、出事也不連累別的功能。
@@ -33,7 +40,7 @@ VS Code 擴充：Markdown 檔點開就是畫面，三種狀態（預覽鎖住／
 - 純邏輯只進 `media/*-core.js`／`turndown-rules.js`，改了就補 `test/`；`build.ps1` 會先跑 `test/run-all.js` 與 `node --check`。
   轉回 markdown 的測試需要 node 版 turndown，路徑放環境變數 `MDVIEW_TURNDOWN`（沒有就略過那支）。
 - 發版：改 `package.json` 版號 → `build.ps1` → `code --install-extension mdview-<版號>.vsix --force` → 重新載入視窗
-  → README 版本紀錄 → commit＋push。
+  → README 版本紀錄 → commit＋push（vsix 一起提交：repo 收 `mdview-<版號>.vsix`，舊版的刪掉只留最新一包；別台電腦的安裝腳本從 clone 裡拿版號最大的那包裝）。
 - `.ps1` 含中文要存成 UTF-8 with BOM，不然 PowerShell 5.1 會讀壞（0.1.0 踩到）。
 - 新增檔案要加進 `build.ps1` 的白名單。
 - 不用截圖驗畫面：驗 `node --check`、測試、class 與 CSS 對照；畫面長怎樣交給使用者看。
